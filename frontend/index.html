@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Image Uploader</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 800px;
+      margin: 20px auto;
+    }
+    .gallery img {
+      max-width: 150px;
+      max-height: 150px;
+      margin: 5px;
+      object-fit: cover;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .message {
+      margin-top: 10px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Image Uploader</h1>
+
+  <section>
+    <h2>Upload a new image</h2>
+    <form id="upload-form">
+      <input type="file" id="file-input" name="file" accept="image/*" required />
+      <button type="submit">Upload</button>
+    </form>
+    <div id="message" class="message"></div>
+  </section>
+
+  <hr />
+
+  <section>
+    <h2>Last 3 uploaded images</h2>
+    <div id="gallery" class="gallery"></div>
+  </section>
+
+  <script>
+    // Change this if your backend runs on a different host/port
+    const API_BASE = "http://127.0.0.1:8000";
+
+    async function loadRecentImages() {
+      try {
+        const res = await fetch(`${API_BASE}/recent`);
+        if (!res.ok) {
+          console.error("Failed to load images:", res.status);
+          return;
+        }
+        const data = await res.json();
+        const gallery = document.getElementById("gallery");
+        gallery.innerHTML = "";
+
+        data.images.forEach((img) => {
+          const imgElem = document.createElement("img");
+          // img.url is like "/uploads/filename.jpg" from backend
+          imgElem.src = `${API_BASE}${img.url}`;
+          imgElem.alt = img.filename;
+          gallery.appendChild(imgElem);
+        });
+      } catch (err) {
+        console.error("Error fetching images:", err);
+      }
+    }
+
+    document
+      .getElementById("upload-form")
+      .addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const fileInput = document.getElementById("file-input");
+        const messageEl = document.getElementById("message");
+
+        if (!fileInput.files.length) {
+          messageEl.textContent = "Please select a file.";
+          return;
+        }
+
+        const formData = new FormData();
+        // key "file" must match backend parameter name
+        formData.append("file", fileInput.files[0]);
+
+        try {
+          const res = await fetch(`${API_BASE}/uploadfile`, {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+            messageEl.textContent =
+              "Upload failed: " + (data.detail || res.status);
+          } else {
+            messageEl.textContent = "Upload successful: " + data.filename;
+            fileInput.value = "";
+            // Refresh the gallery
+            loadRecentImages();
+          }
+        } catch (err) {
+          console.error("Upload error:", err);
+          messageEl.textContent = "Upload error. See console.";
+        }
+      });
+
+    // Load images when page opens
+    loadRecentImages();
+  </script>
+</body>
+</html>
