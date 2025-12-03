@@ -47,6 +47,16 @@ def health_check():
     return {"status": "ok"}
 
 
+def generate_presigned_url(bucket, key, expires=3600):
+    filee = s3_client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": bucket, "Key": key},
+        ExpiresIn=expires,
+    )
+    
+    return filee
+
+
 @app.get("/recent")
 def get_recentfiles():
     files: List[dict] = []  
@@ -107,7 +117,10 @@ async def upload_file(file: UploadFile = File(...)):
 
     file_url = f"https://{AWS_S3_BUCKET}.s3.{AWS_REGION}.amazonaws.com/{s3_key}"
 
+    url = generate_presigned_url(AWS_S3_BUCKET, s3_key)
+
     return {
         "file_url": file_url,
-        "file_data": fileldata
+        "file_data": fileldata,
+        "presigned_url": url
     }

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <title>Image Uploader</title>
@@ -9,6 +10,7 @@
       max-width: 800px;
       margin: 20px auto;
     }
+
     .gallery img {
       max-width: 150px;
       max-height: 150px;
@@ -17,12 +19,14 @@
       border: 1px solid #ccc;
       border-radius: 4px;
     }
+
     .message {
       margin-top: 10px;
       font-size: 0.9rem;
     }
   </style>
 </head>
+
 <body>
   <h1>Image Uploader</h1>
 
@@ -37,37 +41,35 @@
 
   <hr />
 
-  <section>
-    <h2>Last 3 uploaded images</h2>
+    <h2>Last uploaded image</h2>
     <div id="gallery" class="gallery"></div>
-  </section>
 
   <script>
     // Change this if your backend runs on a different host/port
     const API_BASE = "http://127.0.0.1:8000";
 
-    async function loadRecentImages() {
-      try {
-        const res = await fetch(`${API_BASE}/recent`);
-        if (!res.ok) {
-          console.error("Failed to load images:", res.status);
-          return;
-        }
-        const data = await res.json();
-        const gallery = document.getElementById("gallery");
-        gallery.innerHTML = "";
+    async function loadRecentImages(imgg = null) {
+  if (!imgg || !imgg.presigned_url) {
+    console.error("No presigned URL provided");
+    return;
+  }
 
-        data.images.forEach((img) => {
-          const imgElem = document.createElement("img");
-          // img.url is like "/uploads/filename.jpg" from backend
-          imgElem.src = `${API_BASE}${img.url}`;
-          imgElem.alt = img.filename;
-          gallery.appendChild(imgElem);
-        });
-      } catch (err) {
-        console.error("Error fetching images:", err);
-      }
-    }
+  const gallery = document.getElementById("gallery");
+
+  // Optionally clear existing thumbnails if you only want latest one visible:
+  gallery.innerHTML = "";  
+
+  const imgElem = document.createElement("img");
+  imgElem.src = imgg.presigned_url;   // direct presigned URL
+  imgElem.alt = imgg.original_filename || "uploaded-image";
+
+  imgElem.onerror = () => {
+    imgElem.src = "placeholder.png";  // optional fallback image
+  };
+
+  gallery.appendChild(imgElem);
+}
+
 
     document
       .getElementById("upload-form")
@@ -98,10 +100,10 @@
             messageEl.textContent =
               "Upload failed: " + (data.detail || res.status);
           } else {
-            messageEl.textContent = "Upload successful: " + data.filename;
+            messageEl.textContent = "Upload successful!";
             fileInput.value = "";
             // Refresh the gallery
-            loadRecentImages();
+            loadRecentImages(data);
           }
         } catch (err) {
           console.error("Upload error:", err);
@@ -113,4 +115,5 @@
     loadRecentImages();
   </script>
 </body>
+
 </html>
