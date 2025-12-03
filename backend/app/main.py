@@ -1,13 +1,17 @@
 from ctypes import sizeof
 import os
 from fastapi import FastAPI, File, UploadFile, HTTPException
+from dotenv import load_dotenv
 from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from typing import List
 import shutil
 import uuid
+import boto3
+from botocore.exceptions import ClientError
 
+load_dotenv()  # reads .env file and loads into environment variables
 app = FastAPI()
 
 
@@ -19,13 +23,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
+AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 
-#location of image storage
-IMAGESTORAGELOCATION = Path(__file__).parent.parent.parent / "uploadedfiles"
-IMAGESTORAGELOCATION.mkdir(parents=True, exist_ok=True)
+if not AWS_S3_BUCKET:
+    raise RuntimeError("AWS_S3_BUCKET environment variable is not set.")
 
-app.mount("/uploadedfiles", StaticFiles(directory=IMAGESTORAGELOCATION), name="uploadedfiles")
 
+s3_client = boto3.client("s3", region_name=AWS_REGION)
 
 def filesize(file):
     file.file.seek(0, 2)                 # end
@@ -72,6 +77,7 @@ async def upload_file(file: UploadFile = File(...)):
     original_name = file.filename
     ext = Path(original_name).suffix  # e.g. ".jpg"
     unique_name = f"{uuid.uuid4().hex}{ext}"
+    s3_key = f"uploads/{unique_name}"
 
     fileldata = {
         "original_name": original_name,
@@ -80,20 +86,28 @@ async def upload_file(file: UploadFile = File(...)):
         "size_bytes": filesize(file)
     }
 
-    file_path = IMAGESTORAGELOCATION / unique_name
-
     try:
-        with file_path.open("wb") as buffer:
-            content = await(file.read())
-            buffer.write(content)
-            
-            # shutil.copyfileobj(file.file, buffer)            
 
+        file.file.seek(0)
+
+        s3_client.upload_fileobj(
+            file.file,
+            AWS_S3_BUCKET,
+            s3_key,
+            ExtraArgs = {
+                "ContentType": file.content_type,
+                # "ACL": "public-read"
+            },
+        )
     except Exception as e:
-        return {"error": f"Failed to save file: {e}"}
-    
+        raise HTTPException(status_code=500, detail=f"Failed to upload file to S3: {str(e)}")
     finally:
         file.file.close()
 
 
-    return fileldata
+    file_url = f"https://{AWS_S3_BUCKET}.s3.{AWS_REGION}.amazonaws.com/{s3_key}"
+
+    return {
+        "file_url": file_url,
+        "file_data": fileldata
+    }
