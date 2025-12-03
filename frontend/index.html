@@ -4,75 +4,172 @@
 <head>
   <meta charset="UTF-8" />
   <title>Image Uploader</title>
+
   <style>
     body {
-      font-family: sans-serif;
-      max-width: 800px;
-      margin: 20px auto;
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      background-color: #f5f5f5;
+      margin: 0;
+      padding: 40px 0;
+      color: #222;
     }
 
-    .gallery img {
-      max-width: 150px;
-      max-height: 150px;
-      margin: 5px;
-      object-fit: cover;
-      border: 1px solid #ccc;
-      border-radius: 4px;
+    .container {
+      background: white;
+      width: 80%;
+      max-width: 800px;
+      margin: auto;
+      padding: 30px 40px;
+      border-radius: 12px;
+      border: 1px solid #ddd;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
+    }
+
+    h1 {
+      font-size: 28px;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    h2 {
+      margin-top: 20px;
+      font-size: 20px;
+      font-weight: 500;
+    }
+
+    form {
+      display: flex;
+      gap: 12px;
+      margin: 18px 0;
+      align-items: center;
+    }
+
+    input[type="file"] {
+      padding: 8px;
+      border: 1px solid #bbb;
+      border-radius: 6px;
+      background: #fafafa;
+    }
+
+    button {
+      padding: 10px 18px;
+      background-color: #000;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    button:hover {
+      background-color: #333;
     }
 
     .message {
-      margin-top: 10px;
-      font-size: 0.9rem;
+      margin-top: 8px;
+      font-size: 0.95rem;
+    }
+
+    .gallery {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .gallery img {
+      max-width: 240px;
+      max-height: 240px;
+      border-radius: 8px;
+      object-fit: contain;
+      background: #eee;
+      padding: 10px;
+      border: 1px solid #ccc;
+      cursor: zoom-in;
+      transition: 0.25s;
+    }
+
+    .gallery img:hover {
+      transform: scale(1.03);
+    }
+
+    /* Fullscreen magnify overlay */
+    .overlay {
+      display: none; /* hidden by default */
+      position: fixed;
+      z-index: 1000;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(4px);
+      justify-content: center;
+      align-items: center;
+      cursor: zoom-out;
+    }
+
+    .overlay img {
+      max-width: 90%;
+      max-height: 90%;
+      border-radius: 12px;
+      box-shadow: 0 0 18px rgba(255, 255, 255, 0.4);
+    }
+
+    hr {
+      margin: 30px 0;
+      border: none;
+      border-top: 1px solid #ddd;
     }
   </style>
 </head>
 
 <body>
-  <h1>Image Uploader</h1>
+  <div class="container">
+    <h1>Image Upload Portal</h1>
 
-  <section>
-    <h2>Upload a new image</h2>
+    <h2>Upload an Image</h2>
     <form id="upload-form">
       <input type="file" id="file-input" name="file" accept="image/*" required />
       <button type="submit">Upload</button>
     </form>
     <div id="message" class="message"></div>
-  </section>
 
-  <hr />
+    <hr />
 
-    <h2>Last uploaded image</h2>
+    <h2>Last Uploaded Image</h2>
     <div id="gallery" class="gallery"></div>
+  </div>
+
+  <!-- Lightbox overlay -->
+  <div id="overlay" class="overlay">
+    <img id="overlay-img" src="" />
+  </div>
 
   <script>
-    // Change this if your backend runs on a different host/port
     const API_BASE = "http://127.0.0.1:8000";
 
-    async function loadRecentImages(imgg = null) {
+async function loadRecentImages(imgg = null) {
+  const gallery = document.getElementById("gallery");
+  gallery.innerHTML = ""; // always clear
+
+  // If no upload yet → show placeholder
   if (!imgg || !imgg.presigned_url) {
-    console.error("No presigned URL provided");
+    const placeholder = document.createElement("img");
+    placeholder.src = "../placeholderimg/placeholder.jpeg";
+    placeholder.alt = "No image uploaded";
+    placeholder.style.opacity = "0.6";
+
+    gallery.appendChild(placeholder);
     return;
   }
 
-  const gallery = document.getElementById("gallery");
-
-  // Optionally clear existing thumbnails if you only want latest one visible:
-  gallery.innerHTML = "";  
-
+  // When we DO have a real uploaded image:
   const imgElem = document.createElement("img");
-  imgElem.src = imgg.presigned_url;   // direct presigned URL
-  imgElem.alt = imgg.original_filename || "uploaded-image";
-
-  imgElem.onerror = () => {
-    imgElem.src = "placeholder.png";  // optional fallback image
-  };
+  imgElem.src = imgg.presigned_url;
+  imgElem.alt = imgg.original_filename || "uploaded image";
+  imgElem.addEventListener("click", () => showOverlay(imgg.presigned_url));
 
   gallery.appendChild(imgElem);
 }
 
-
-    document
-      .getElementById("upload-form")
+    document.getElementById("upload-form")
       .addEventListener("submit", async (event) => {
         event.preventDefault();
 
@@ -85,7 +182,6 @@
         }
 
         const formData = new FormData();
-        // key "file" must match backend parameter name
         formData.append("file", fileInput.files[0]);
 
         try {
@@ -97,12 +193,10 @@
           const data = await res.json().catch(() => ({}));
 
           if (!res.ok) {
-            messageEl.textContent =
-              "Upload failed: " + (data.detail || res.status);
+            messageEl.textContent = "Upload failed: " + (data.detail || res.status);
           } else {
             messageEl.textContent = "Upload successful!";
             fileInput.value = "";
-            // Refresh the gallery
             loadRecentImages(data);
           }
         } catch (err) {
@@ -111,7 +205,20 @@
         }
       });
 
-    // Load images when page opens
+    // ----- Magnify overlay logic -----
+    const overlay = document.getElementById("overlay");
+    const overlayImg = document.getElementById("overlay-img");
+
+    function showOverlay(url) {
+      overlayImg.src = url;
+      overlay.style.display = "flex";
+    }
+
+    overlay.addEventListener("click", () => {
+      overlay.style.display = "none";
+      overlayImg.src = "";
+    });
+
     loadRecentImages();
   </script>
 </body>
