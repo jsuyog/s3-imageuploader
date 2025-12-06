@@ -143,7 +143,7 @@
   </div>
 
   <script>
-    const API_BASE = "http://127.0.0.1:8000";
+    const API_BASE = "/api";
 
 async function loadRecentImages(imgg = null) {
   const gallery = document.getElementById("gallery");
@@ -152,7 +152,7 @@ async function loadRecentImages(imgg = null) {
   // If no upload yet → show placeholder
   if (!imgg || !imgg.presigned_url) {
     const placeholder = document.createElement("img");
-    placeholder.src = "../placeholderimg/placeholder.jpeg";
+    placeholder.src = "./placeholderimg/placeholder.jpeg";
     placeholder.alt = "No image uploaded";
     placeholder.style.opacity = "0.6";
 
